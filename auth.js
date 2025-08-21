@@ -1,149 +1,110 @@
 // ===============================
-// Authentication with Google Sheets backend
+// Supabase Authentication (Login Only)
 // ===============================
 
-// Salted hash auth configuration
-const SALT = "MySuperSecretKey_OnlyIKnow"; // keep this private
+// Configuration placeholders (set these in HTML before loading this file, or edit here)
+const SUPABASE_URL = window.SUPABASE_URL || "https://ftcljqdbtfxpkdkpvcra.supabase.co";
+const SUPABASE_ANON_KEY = window.SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZ0Y2xqcWRidGZ4cGtka3B2Y3JhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU3NjEyODUsImV4cCI6MjA3MTMzNzI4NX0.3NdwfhDKU2KgFbOhgUadaSb-bE3MuR2u6DfOC4l2QjU";
+const START_PAGE = "index.html"; // Redirect here after login
+const LOGIN_PAGE = "login.html"; // Redirect here if not authenticated
 
-// External accounts store (fetched from Google Sheets)
-let hashedAccounts = [];
-let hashedAccountsLoaded = false;
+// Ensure Supabase SDK is available (loaded via CDN). If not present, inject it.
+(function ensureSupabaseCdn() {
+    if (window.supabase) return;
+    const script = document.createElement("script");
+    script.src = "https://unpkg.com/@supabase/supabase-js@2";
+    script.defer = true;
+    document.head.appendChild(script);
+})();
 
-// Load accounts from Google Spreadsheet
-async function loadHashedAccounts() {
-    if (hashedAccountsLoaded) return hashedAccounts;
+// Create (or reuse) a single Supabase client instance
+function getSupabaseClient() {
+    if (!window.supabase) {
+        throw new Error("Supabase SDK not loaded. Ensure CDN script is included before using auth");
+    }
+    if (!window.__supabaseClient) {
+        window.__supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    }
+    return window.__supabaseClient;
+}
 
+// Auth helpers
+async function getSession() {
+    const client = getSupabaseClient();
+    const { data } = await client.auth.getSession();
+    return data.session || null;
+}
+
+async function loginWithEmailPassword(email, password) {
+    const client = getSupabaseClient();
+    const { data, error } = await client.auth.signInWithPassword({ email, password });
+    if (error) return { success: false, message: error.message };
+    if (data.session) {
+        window.location.href = START_PAGE;
+    }
+    return { success: true };
+}
+
+async function logout() {
+    const client = getSupabaseClient();
+    await client.auth.signOut();
+    window.location.href = LOGIN_PAGE;
+}
+
+async function requireAuth() {
     try {
-        const url = "https://docs.google.com/spreadsheets/d/1BvKB2_gdI00nToCVkLlQOeH74Ndr7AScOErE4poVwVQ/gviz/tq?tqx=out:json";
-
-        const response = await fetch(url);
-        const text = await response.text();
-
-        // Google returns JSON wrapped inside a function → clean it
-        const json = JSON.parse(text.substring(47).slice(0, -2));
-        const rows = json.table.rows;
-
-        // Map columns (skip Timestamp)
-        hashedAccounts = rows.map(r => ({
-            usernameHash: r.c[1]?.v?.trim(),
-            passwordHash: r.c[2]?.v?.trim(),
-            role: r.c[3]?.v?.trim()
-        }));
-
-        hashedAccountsLoaded = true;
-        console.log("Loaded accounts from sheet:", hashedAccounts);
-    } catch (err) {
-        console.error("Error loading accounts from Google Sheets:", err);
-    }
-
-    return hashedAccounts;
-}
-
-// SHA-256 helper (hex output)
-async function sha256Hex(input) {
-    const encoder = new TextEncoder();
-    const data = encoder.encode(input);
-    const hashBuffer = await crypto.subtle.digest("SHA-256", data);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    return hashArray.map(b => b.toString(16).padStart(2, "0")).join("");
-}
-
-// Check if user is already logged in
-function checkAuth() {
-    const isLoggedIn = localStorage.getItem("loggedIn") === "true";
-    const currentPage = (window.location.pathname.split("/").pop() || "").toLowerCase();
-    const isLoginPage = currentPage === "login.html" || currentPage === "";
-    const isHashGenPage = currentPage === "hashgen.html";
-
-    if (!isLoggedIn && !isLoginPage && !isHashGenPage) {
-        window.location.href = "login.html";
-        return false;
-    }
-
-    if (isLoggedIn && isLoginPage) {
-        window.location.href = "index.html";
-        return false;
-    }
-
-    return true;
-}
-
-// Login function (salted SHA-256 verification)
-async function login(username, password) {
-    try {
-        await loadHashedAccounts();
-        const computedUserHash = await sha256Hex(String(username) + SALT);
-        const computedPassHash = await sha256Hex(String(password) + SALT);
-
-        console.log("Computed usernameHash:", computedUserHash);
-        console.log("Computed passwordHash:", computedPassHash);
-
-        // Find matching account
-        const match = hashedAccounts.find(
-            acc => acc.usernameHash === computedUserHash && acc.passwordHash === computedPassHash
-        );
-
-        if (match) {
-            localStorage.setItem("loggedIn", "true");
-            localStorage.setItem("currentUserHash", computedUserHash);
-            localStorage.setItem("currentUserRole", match.role);
-            return { success: true };
+        const session = await getSession();
+        if (!session) {
+            if (!window.location.pathname.endsWith(`/${LOGIN_PAGE}`) && !window.location.pathname.endsWith(LOGIN_PAGE)) {
+                window.location.replace(LOGIN_PAGE);
+            }
+            return false;
         }
-
-        return { success: false, message: "Invalid username or password" };
-    } catch (err) {
-        console.error(err);
-        return { success: false, message: "Secure hashing not supported in this context" };
+        return true;
+    } catch (e) {
+        window.location.replace(LOGIN_PAGE);
+        return false;
     }
 }
 
-// Logout
-function logout() {
-    localStorage.removeItem("loggedIn");
-    localStorage.removeItem("currentUserHash");
-    localStorage.removeItem("currentUserRole");
-    window.location.href = "login.html";
+async function redirectIfAuthenticated() {
+    try {
+        const session = await getSession();
+        if (session) {
+            window.location.replace(START_PAGE);
+            return true;
+        }
+        return false;
+    } catch (_e) {
+        return false;
+    }
 }
 
-// Get current user info
-function getCurrentUser() {
-    const hash = localStorage.getItem("currentUserHash");
-    const role = localStorage.getItem("currentUserRole");
-    if (!hash || !role) return null;
-    return { usernameHash: hash, role };
-}
-
-// Check if user is admin
-function isAdmin() {
-    return localStorage.getItem("currentUserRole") === "admin";
-}
-
-// Initialize authentication on page load
+// UI wiring
 document.addEventListener("DOMContentLoaded", function () {
-    checkAuth();
-
-    // Handle login form
+    // Login form handling
     const loginForm = document.getElementById("loginForm");
     if (loginForm) {
         loginForm.addEventListener("submit", async function (e) {
             e.preventDefault();
-
-            const username = document.getElementById("username").value;
-            const password = document.getElementById("password").value;
+            const email = (document.getElementById("email") || {}).value;
+            const password = (document.getElementById("password") || {}).value;
             const errorMessage = document.getElementById("errorMessage");
 
-            if (!username || !password) {
-                errorMessage.textContent = "Please enter both username and password";
+            if (!email || !password) {
+                if (errorMessage) errorMessage.textContent = "Please enter both email and password";
                 return;
             }
 
-            const result = await login(username, password);
-
-            if (result && result.success) {
-                errorMessage.textContent = "";
-                window.location.href = "index.html";
-            } else {
-                errorMessage.textContent = (result && result.message) || "Login failed";
+            try {
+                const result = await loginWithEmailPassword(email, password);
+                if (!result.success) {
+                    if (errorMessage) errorMessage.textContent = result.message || "Login failed";
+                } else {
+                    if (errorMessage) errorMessage.textContent = "";
+                }
+            } catch (err) {
+                if (errorMessage) errorMessage.textContent = "Unexpected error during login";
             }
         });
     }
@@ -228,18 +189,22 @@ window.addEventListener("resize", function () {
     }
 });
 
-// Expose functions
+// Expose auth API
 window.auth = {
-    login,
+    loginWithEmailPassword,
     logout,
-    getCurrentUser,
-    isAdmin,
-    checkAuth
+    getSession,
+    requireAuth,
+    redirectIfAuthenticated
 };
 
-// WhatsApp Chat Widget
+// Keep a global logout() for existing onclick handlers
+window.logout = logout;
+
+// WhatsApp Chat Widget (unchanged)
 document.addEventListener("DOMContentLoaded", function () {
     const whatsappBtn = document.getElementById("whatsapp-btn");
+    if (!whatsappBtn) return;
 
     // Replace with your own published CSV link
     const SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQkASn4kTmnDmO_3Qjt_pzaxilNpBt9eAvBM2D10HHxOY4a3bXuO33OdHyRuk5_hV1C0rLbvZkyTtLS/pub?output=csv";
@@ -249,7 +214,7 @@ document.addEventListener("DOMContentLoaded", function () {
             .then(res => res.text())
             .then(data => {
                 let firstRow = data.split("\n")[1];
-                let number = firstRow.split(",")[1].trim(); // B1 cell
+                let number = firstRow && firstRow.split(",")[1] ? firstRow.split(",")[1].trim() : "";
 
                 if (number) {
                     window.open(`https://wa.me/${number}`, "_blank");

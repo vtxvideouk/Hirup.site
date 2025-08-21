@@ -8,6 +8,18 @@
     <link rel="stylesheet" href="style.css">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap"
         rel="stylesheet">
+    <!-- Supabase SDK -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- Uses credentials from auth.js -->
+    <script src="auth.js"></script>
+    <script>
+        // Redirect to login if not authenticated
+        (function () {
+            if (window.auth && typeof window.auth.requireAuth === 'function') {
+                window.auth.requireAuth();
+            }
+        })();
+    </script>
 </head>
 
 <body>

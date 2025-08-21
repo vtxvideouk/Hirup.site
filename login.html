@@ -8,6 +8,9 @@
     <link rel="stylesheet" href="style.css">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap"
         rel="stylesheet">
+    <!-- Supabase SDK (auth.js will use the values defined inside it) -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" defer></script>
+    <script src="auth.js" defer></script>
 </head>
 
 <body>
@@ -17,16 +20,16 @@
                 <h1>DataTrack Pro</h1>
                 <p>Secure Information Lookup Portal</p>
             </div>
-            <form id="loginForm" class="login-form">
+            <form id="loginForm" class="login-form" autocomplete="on">
                 <div class="form-group">
-                    <label for="username">Username</label>
-                    <input type="text" id="username" name="username" required>
+                    <label for="email">Email</label>
+                    <input type="email" id="email" name="email" placeholder="you@example.com" required>
                 </div>
                 <div class="form-group">
                     <label for="password">Password</label>
-                    <input type="password" id="password" name="password" required>
+                    <input type="password" id="password" name="password" placeholder="••••••••" required>
                 </div>
-                <button type="submit" class="login-btn">Login</button>
+                <button type="submit" class="login-btn">Sign in</button>
                 <!-- WhatsApp Contact Admin Button -->
                 <button type="button" class="whatsapp-btn" id="whatsapp-btn">
                     📱 For Access Contact Admin
@@ -59,7 +62,14 @@
         }
     </style>
 
-    <script src="auth.js"></script>
+    <script>
+        // If user is already authenticated, redirect them away from login
+        document.addEventListener('DOMContentLoaded', function () {
+            if (window.auth && typeof window.auth.redirectIfAuthenticated === 'function') {
+                window.auth.redirectIfAuthenticated();
+            }
+        });
+    </script>
 </body>
 
 </html>
