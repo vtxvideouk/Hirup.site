@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WhatsApp Number Manager</title>
+    <link rel="stylesheet" href="whatsapp.css">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap"
+        rel="stylesheet">
+</head>
+
+<body>
+    <main class="main-content">
+        <div class="whatsapp-card">
+            <h3 class="section-title">WhatsApp Number Manager</h3>
+            <p class="note">Manage the WhatsApp number used across your site.</p>
+          
+            <form id="updateForm" class="update-form">
+              <div class="form-group">
+                <label for="newNumber">WhatsApp Number</label>
+                <input type="text" id="newNumber" placeholder="923001234567" required>
+              </div>
+              <div class="hashgen-actions">
+                <button type="button" id="updateBtn" class="service-btn">Delete Old</button>
+                <button type="submit" class="submit-btn">Save New</button>
+              </div>
+            </form>
+          
+            <p id="currentNumber" class="mono" style="margin-top:14px;">Loading...</p>
+          </div>
+          
+        <!-- Popup Message -->
+        <div id="popupMessage" class="hidden popup">
+            <div class="popup-content">
+                <p id="popupText"></p>
+                <button id="popupClose" class="service-btn">OK</button>
+            </div>
+        </div>
+
+    </main>
+    <script>
+ 
+        const API_URL = "https://script.google.com/macros/s/AKfycbxRcMDYCL2xrOOBpEqRfWXDhcFAu3HtnVWcwUg7d2KbS4x7sSCMWREFRmyGQ4AS-fBrJA/exec";
+        const FORM_URL = "https://docs.google.com/forms/d/e/1FAIpQLSc5MQREdeADZx3-DZN6PVW3GKKnF4ePbazG3yIsapKdeBUnNA/formResponse";
+        const ENTRY_ID = "entry.828222009"; // field id for WhatsApp number
+
+        // Load current number
+        function fetchNumber() {
+            fetch(API_URL)
+                .then(res => res.text())
+                .then(number => {
+                    document.getElementById("currentNumber").innerText = number || "No number set";
+                    document.getElementById("newNumber").value = number;
+                });
+        }
+        fetchNumber();
+
+        // Step 1: Delete old number when "Update" clicked
+        document.getElementById("updateBtn").addEventListener("click", () => {
+            fetch(API_URL, {
+                method: "POST",
+                body: new URLSearchParams({ action: "delete" })
+            })
+                .then(res => res.text())
+                .then(msg => {
+                    alert(msg);
+                    document.getElementById("newNumber").value = ""; // clear input
+                });
+        });
+
+        // Step 2: Save new number via Form submission
+        document.getElementById("updateForm").addEventListener("submit", function (e) {
+            e.preventDefault();
+            const newNumber = document.getElementById("newNumber").value;
+
+            if (!newNumber) {
+                alert("Please enter a number first.");
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append(ENTRY_ID, newNumber);
+
+            fetch(FORM_URL, { method: "POST", body: formData, mode: "no-cors" })
+                .then(() => {
+                    alert("✅ New number saved!");
+                    fetchNumber();
+                });
+        });
+
+    </script>
+</body>
+
+</html>
